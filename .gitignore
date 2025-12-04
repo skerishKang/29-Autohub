@@ -1,0 +1,23 @@
+# Node backend
+backend/node_modules/
+backend/dist/
+backend/logs/
+backend/.env
+backend/.env.*
+
+# Docker local artifacts
+backend/uploads/
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+
+# Android/Gradle builds
+**/build/
+**/.gradle/
+**/.idea/
+
+# Logs
+*.log

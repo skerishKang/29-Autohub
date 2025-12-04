@@ -1,0 +1,39 @@
+{
+  "project_info": {
+    "project_number": "595518888404",
+    "project_id": "autohub-dev",
+    "storage_bucket": "autohub-dev.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:595518888404:android:6e986f8b647bb06eda5e41",
+        "android_client_info": {
+          "package_name": "com.autohub.sms"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "595518888404-08uulu91mj4jfe1ckrdc4j1e1lb724r7.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDydGSbUKCZiUXRbgFpuAlJerWI3--Uszc"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "595518888404-08uulu91mj4jfe1ckrdc4j1e1lb724r7.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

@@ -26,6 +26,7 @@ import userRoutes from './routes/users';
 import webhookRoutes from './routes/webhooks';
 import analyticsRoutes from './routes/analytics';
 import healthRoutes from './routes/health';
+import authRoutes from './routes/auth';
 
 // 환경 변수 로드
 dotenv.config();
@@ -103,6 +104,7 @@ app.use(metricsMiddleware);
 
 // API 라우트
 app.use('/api/health', healthRoutes);
+app.use('/api/auth', authRoutes);
 app.use('/api/sms', smsRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/users', userRoutes);

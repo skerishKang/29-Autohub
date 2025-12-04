@@ -58,6 +58,7 @@ services:
       PORT: 3000
       DB_HOST: postgres
       DB_PORT: 5432
+      FIREBASE_ADMIN_CREDENTIALS_PATH: ${FIREBASE_ADMIN_CREDENTIALS_PATH:-}
       DB_NAME: ${DB_NAME:-autohub}
       DB_USER: ${DB_USER:-autohub}
       DB_PASSWORD: ${DB_PASSWORD:-autohub123}
@@ -78,6 +79,7 @@ services:
     volumes:
       - ./logs:/app/logs
       - ./uploads:/app/uploads
+      - ./secrets:/app/secrets:ro
     depends_on:
       postgres:
         condition: service_healthy

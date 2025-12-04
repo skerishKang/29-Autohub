@@ -144,6 +144,11 @@ export default function LoginPage() {
             onClick={handleGoogleLogin}
             className="w-full rounded-md border border-slate-600 bg-slate-900 hover:bg-slate-800 disabled:bg-slate-500 text-white font-medium py-2 text-sm transition-colors flex items-center justify-center gap-2"
           >
+            <img
+              src="/google.svg"
+              alt="Google"
+              className="h-4 w-4"
+            />
             <span>Google 계정으로 로그인</span>
           </button>
         </div>

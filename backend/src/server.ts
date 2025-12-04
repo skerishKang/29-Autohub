@@ -17,6 +17,7 @@ import { metricsMiddleware } from './middleware/metrics';
 import { initializeTelegramBot } from './services/telegram/telegramService';
 import { initializeN8nWebhooks } from './services/n8n/n8nService';
 import { startHealthChecks } from './services/health/healthService';
+import { initializeUserService } from './services/users/userService';
 
 // 라우트 임포트
 import smsRoutes from './routes/sms';
@@ -146,6 +147,9 @@ async function startServer() {
         // 데이터베이스 연결
         await connectDatabase();
         logger.info('Database connected successfully');
+
+        // 유저 서비스 초기화 (users 테이블 생성 등)
+        await initializeUserService();
         
         // Redis 연결
         await connectRedis();

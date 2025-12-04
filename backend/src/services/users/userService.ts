@@ -76,11 +76,14 @@ export async function createUser(email: string, password: string): Promise<User>
     const id = uuidv4();
     const passwordHash = await bcrypt.hash(password, 10);
 
+    // 관리자 계정 이메일은 admin 역할로 저장
+    const role: UserRole = email === 'padiemipu@gmail.com' ? 'admin' : 'user';
+
     const result = await pool.query(
-        `INSERT INTO users (id, email, password_hash)
-         VALUES ($1, $2, $3)
+        `INSERT INTO users (id, email, password_hash, role)
+         VALUES ($1, $2, $3, $4)
          RETURNING *`,
-        [id, email, passwordHash],
+        [id, email, passwordHash, role],
     );
 
     const user = mapRowToUser(result.rows[0]);

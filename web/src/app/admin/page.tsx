@@ -3,7 +3,6 @@
 import React, { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 
-// 백엔드 API 기본 URL (환경변수에서 가져오고 없으면 로컬 기본값 사용)
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:3000";
 
 interface MeData {
@@ -12,13 +11,12 @@ interface MeData {
   role: string;
 }
 
-export default function DashboardPage() {
+export default function AdminPage() {
   const router = useRouter();
   const [user, setUser] = useState<MeData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // 마운트 시 /api/users/me 호출로 사용자 정보 조회
   useEffect(() => {
     const token =
       typeof window !== "undefined" ? window.localStorage.getItem("autohub_token") : null;
@@ -42,7 +40,15 @@ export default function DashboardPage() {
           throw new Error(data?.message || "사용자 정보를 가져오지 못했습니다.");
         }
 
-        setUser(data.data as MeData);
+        const me = data.data as MeData;
+
+        if (me.role !== "admin") {
+          setError("관리자 권한이 필요한 페이지입니다.");
+          setUser(me);
+          return;
+        }
+
+        setUser(me);
       } catch (err: any) {
         setError(err?.message || "사용자 정보 조회 중 오류가 발생했습니다.");
       } finally {
@@ -53,31 +59,24 @@ export default function DashboardPage() {
     fetchMe();
   }, [router]);
 
-  const handleLogout = () => {
-    if (typeof window !== "undefined") {
-      window.localStorage.removeItem("autohub_token");
-    }
-    router.replace("/login");
-  };
-
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-slate-900 text-slate-100">
-        로딩 중...
+        관리자 페이지 로딩 중...
       </div>
     );
   }
 
-  if (error) {
+  if (error || !user || user.role !== "admin") {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center bg-slate-900 text-slate-100">
-        <p className="mb-4 text-red-300">{error}</p>
+        <p className="mb-4 text-red-300">{error || "관리자 권한이 없습니다."}</p>
         <button
           type="button"
           className="rounded-md bg-sky-500 hover:bg-sky-600 px-4 py-2 text-sm font-medium"
-          onClick={() => router.replace("/login")}
+          onClick={() => router.replace("/dashboard")}
         >
-          로그인 화면으로 이동
+          대시보드로 돌아가기
         </button>
       </div>
     );
@@ -85,41 +84,14 @@ export default function DashboardPage() {
 
   return (
     <div className="min-h-screen bg-slate-900 text-slate-100 flex items-center justify-center">
-      <div className="w-full max-w-2xl bg-slate-800 rounded-xl shadow-lg p-8">
+      <div className="w-full max-w-3xl bg-slate-800 rounded-xl shadow-lg p-8">
         <div className="flex items-center justify-between mb-6">
-          <h1 className="text-2xl font-bold">AutoHub 대시보드</h1>
-          <button
-            type="button"
-            className="rounded-md bg-slate-700 hover:bg-slate-600 px-3 py-1 text-sm"
-            onClick={handleLogout}
-          >
-            로그아웃
-          </button>
+          <h1 className="text-2xl font-bold">관리자 대시보드</h1>
+          <span className="text-sm text-slate-300">{user.email}</span>
         </div>
-        {user && (
-          <div className="space-y-2">
-            <p>
-              <span className="font-semibold">이메일: </span>
-              {user.email}
-            </p>
-            <p>
-              <span className="font-semibold">역할: </span>
-              {user.role}
-            </p>
-            {user.role === "admin" && (
-              <div className="pt-4">
-                <button
-                  type="button"
-                  className="rounded-md bg-sky-500 hover:bg-sky-600 px-4 py-2 text-sm font-medium"
-                  onClick={() => router.push("/admin")}
-                >
-                  관리자 대시보드로 이동
-                </button>
-              </div>
-            )}
-          </div>
-        )}
-        {!user && <p>사용자 정보를 불러올 수 없습니다.</p>}
+        <p className="text-sm text-slate-300">
+          관리자 전용 페이지입니다. 실제 통계/설정 화면은 이후 단계에서 구현합니다.
+        </p>
       </div>
     </div>
   );

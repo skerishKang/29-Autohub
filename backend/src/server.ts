@@ -50,24 +50,11 @@ app.use(helmet({
     },
 }));
 
-// CORS 설정
+// CORS 설정 (초기 단계에서는 모든 오리진 허용)
 app.use(cors({
-    origin: (origin, callback) => {
-        const allowedOrigins = process.env.ALLOWED_ORIGINS?.split(',') || [
-            'http://localhost:3000',
-            'http://localhost:3001',
-            'https://auto-hub.com'
-        ];
-        
-        if (!origin || allowedOrigins.includes(origin)) {
-            callback(null, true);
-        } else {
-            callback(new Error('Not allowed by CORS'));
-        }
-    },
-    credentials: true,
+    origin: '*',
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization', 'X-API-Key']
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-API-Key'],
 }));
 
 // 속도 제한

@@ -144,3 +144,78 @@ export async function logOutboundMessageEvent(event: OutboundMessageEvent): Prom
 
   return id;
 }
+
+export interface OutboundSmsForDevice {
+  id: string;
+  deviceId: string;
+  recipient: string | null;
+  body: string | null;
+}
+
+export async function findNextQueuedOutboundSmsForDevice(deviceId: string): Promise<OutboundSmsForDevice | null> {
+  const pool: Pool = getDbPool();
+
+  const result = await pool.query(
+    `SELECT id, device_id, recipient, body
+       FROM message_events
+      WHERE direction = 'outbound'
+        AND channel = 'sms'
+        AND device_id = $1
+        AND status = 'queued'
+      ORDER BY created_at ASC
+      LIMIT 1`,
+    [deviceId],
+  );
+
+  if ((result.rowCount ?? 0) === 0) {
+    return null;
+  }
+
+  const row = result.rows[0];
+
+  await pool.query(
+    `UPDATE message_events
+        SET status = 'delivering',
+            updated_at = now()
+      WHERE id = $1`,
+    [row.id],
+  );
+
+  return {
+    id: row.id,
+    deviceId: row.device_id,
+    recipient: row.recipient,
+    body: row.body,
+  };
+}
+
+export async function markOutboundSmsAsCompletedForDevice(
+  deviceId: string,
+  messageEventId: string,
+  status: string,
+  errorCode?: string,
+  errorMessage?: string,
+): Promise<boolean> {
+  const pool: Pool = getDbPool();
+
+  const result = await pool.query(
+    `UPDATE message_events
+        SET status = $3,
+            error_code = $4,
+            error_message = $5,
+            updated_at = now()
+      WHERE id = $1
+        AND device_id = $2
+        AND direction = 'outbound'
+        AND channel = 'sms'`,
+    [
+      messageEventId,
+      deviceId,
+      status,
+      errorCode ?? null,
+      errorMessage ?? null,
+    ],
+  );
+
+  return (result.rowCount ?? 0) > 0;
+}

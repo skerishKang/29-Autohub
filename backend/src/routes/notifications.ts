@@ -33,6 +33,15 @@ router.post('/', authMiddleware, async (
         });
     }
 
+    if (channel === 'sms') {
+        if (!deviceId || !recipient) {
+            return res.status(400).json({
+                status: 'error',
+                message: 'SMS 발신에는 deviceId와 recipient가 필수입니다.',
+            });
+        }
+    }
+
     try {
         const { sub: userId, email } = req.user;
 

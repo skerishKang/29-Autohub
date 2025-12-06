@@ -252,6 +252,67 @@ interface SmsRequestBody {
   - n8n 플로우 안에서 AutoHub의 다른 API(예: `/api/notifications` 또는 외부 API)를 추가로 호출해, SMS 내용을 기반으로 자동 응답/후속 작업을 트리거할 수 있다.
   - 테스트용 디바이스에서만 동작하도록 `deviceId` 화이트리스트를 두고 시작하는 것을 추천한다.
 
+### 6.4 발신 SMS 플로우 및 API (기본 구현)
+
+- 발신 플로우 개요
+  - n8n 또는 백엔드 클라이언트가 `/api/notifications` 엔드포인트를 통해 **발신 SMS 요청**을 생성한다.
+  - 서버는 `message_events` 테이블에 `direction = 'outbound'`, `channel = 'sms'`, `status = 'queued'` 인 레코드를 쌓는다.
+  - 안드로이드 에이전트는 주기적으로 서버에서 자신(`deviceId`)에 해당하는 **대기 중(queued) 발신 SMS를 폴링**한다.
+  - 에이전트가 SMS 발신을 실제로 수행한 후, 서버에 **성공/실패 상태를 보고(ack)** 한다.
+
+- 1단계: n8n → 백엔드 (`POST /api/notifications`)
+  - 인증: JWT (`Authorization: Bearer ...`), 기존 알림 API와 동일.
+  - 요청 예시(JSON):
+    - `channel`: 반드시 `"sms"`
+    - `deviceId`: 발신을 수행할 에이전트 디바이스 ID
+    - `recipient`: 수신자 전화번호 (예: `"+821012345678"`)
+    - `body`: SMS 본문
+  - 검증 규칙:
+    - `channel` 과 `body` 는 필수.
+    - `channel === "sms"` 인 경우 `deviceId`, `recipient` 도 필수.
+  - 동작:
+    - 유저 기준 테넌트를 식별(`getOrCreateTenantIdForUser`).
+    - `message_events` 테이블에 `direction = 'outbound'`, `channel = 'sms'`, `status = 'queued'` 로 아웃바운드 이벤트를 기록.
+    - 발신 1건당 1 크레딧 차감 (`consumeCreditsForUser`, 소프트 리미트).
+
+- 2단계: 에이전트 → 백엔드 (다음 발신 SMS 조회)
+  - 엔드포인트: `GET /api/agent/devices/:deviceId/outbound-sms/next`
+  - 인증: `x-agent-secret` 헤더 (디바이스 등록 API와 동일 시크릿 사용).
+  - 동작:
+    - `message_events` 테이블에서
+      - `direction = 'outbound'`
+      - `channel = 'sms'`
+      - `device_id = :deviceId`
+      - `status = 'queued'`
+      인 가장 오래된 레코드를 1건 조회.
+    - 조회된 레코드는 즉시 `status = 'delivering'` 으로 업데이트.
+  - 응답 예시:
+    - 대기 중인 SMS가 없는 경우: `data: null`
+    - 있는 경우:
+      - `messageEventId`: `message_events.id`
+      - `deviceId`: 대상 디바이스 ID
+      - `recipient`: 수신자 번호
+      - `body`: SMS 본문
+
+- 3단계: 에이전트 → 백엔드 (발신 결과 보고)
+  - 엔드포인트: `POST /api/agent/devices/:deviceId/outbound-sms/:messageEventId/ack`
+  - 인증: `x-agent-secret` 헤더.
+  - 요청 바디 예시(JSON):
+    - `status`: `"sent"` 또는 `"failed"` (필수)
+    - `errorCode`: 실패 시 에러 코드(옵션)
+    - `errorMessage`: 실패 시 에러 메시지(옵션)
+  - 동작:
+    - `message_events` 에서
+      - `id = :messageEventId`
+      - `device_id = :deviceId`
+      - `direction = 'outbound'`
+      - `channel = 'sms'`
+      인 레코드를 찾아 `status`, `error_code`, `error_message` 를 업데이트.
+    - 성공 시 `status: success` 와 함께 `messageEventId`, 최종 `status` 를 응답.
+
+> 참고: 안드로이드 에이전트 쪽의 실제 폴링/발신/ACK 구현은 이후 단계에서 진행할 수 있으며,
+> 위 API 설계에 맞추어 코루틴 기반 폴링 루프와 `SmsManager` 호출을 추가하면 된다.
+
 ---
 
 ## 7. 향후 작업 항목

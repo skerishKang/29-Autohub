@@ -2,12 +2,19 @@ import { Router, Request, Response } from 'express';
 import { registerDeviceForTenant, getDeviceByDeviceId } from '../services/devices/deviceService';
 import { getOrCreateAgentTenant } from '../services/billing/billingService';
 import { logger } from '../config/logger';
+import { findNextQueuedOutboundSmsForDevice, markOutboundSmsAsCompletedForDevice } from '../services/messages/messageLogService';
 
 const router = Router();
 
 interface AgentDeviceRegisterBody {
     deviceId?: string;
     name?: string;
+}
+
+interface OutboundSmsAckBody {
+    status?: string;
+    errorCode?: string;
+    errorMessage?: string;
 }
 
 const DEFAULT_AGENT_SECRET = 'dev-agent-secret';
@@ -123,5 +130,141 @@ router.get('/devices/:deviceId/status', async (req: Request, res: Response) => {
         });
     }
 });
+
+router.get('/devices/:deviceId/outbound-sms/next', async (req: Request, res: Response) => {
+    try {
+        const configuredSecret = getAgentSecret();
+        if (!configuredSecret) {
+            return res.status(500).json({
+                status: 'error',
+                message: '에이전트 등록용 시크릿이 서버에 설정되지 않았습니다.',
+            });
+        }
+
+        const headerSecret = (req.header('x-agent-secret') || req.header('x-agent-token') || '').trim();
+
+        if (!headerSecret || headerSecret !== configuredSecret) {
+            return res.status(401).json({
+                status: 'error',
+                message: '유효하지 않은 에이전트 시크릿입니다.',
+            });
+        }
+
+        const { deviceId } = req.params;
+
+        if (!deviceId) {
+            return res.status(400).json({
+                status: 'error',
+                message: 'deviceId 파라미터는 필수입니다.',
+            });
+        }
+
+        const next = await findNextQueuedOutboundSmsForDevice(deviceId);
+
+        if (!next) {
+            return res.status(200).json({
+                status: 'success',
+                data: null,
+            });
+        }
+
+        return res.status(200).json({
+            status: 'success',
+            data: {
+                messageEventId: next.id,
+                deviceId: next.deviceId,
+                recipient: next.recipient,
+                body: next.body,
+            },
+        });
+    } catch (error) {
+        logger.error('에이전트 발신 SMS 조회 중 오류', { error });
+        return res.status(500).json({
+            status: 'error',
+            message: '에이전트 발신 SMS 조회 중 오류가 발생했습니다.',
+        });
+    }
+});
+
+router.post(
+    '/devices/:deviceId/outbound-sms/:messageEventId/ack',
+    async (
+        req: Request<{ deviceId: string; messageEventId: string }, unknown, OutboundSmsAckBody>,
+        res: Response,
+    ) => {
+        try {
+            const configuredSecret = getAgentSecret();
+            if (!configuredSecret) {
+                return res.status(500).json({
+                    status: 'error',
+                    message: '에이전트 등록용 시크릿이 서버에 설정되지 않았습니다.',
+                });
+            }
+
+            const headerSecret = (req.header('x-agent-secret') || req.header('x-agent-token') || '').trim();
+
+            if (!headerSecret || headerSecret !== configuredSecret) {
+                return res.status(401).json({
+                    status: 'error',
+                    message: '유효하지 않은 에이전트 시크릿입니다.',
+                });
+            }
+
+            const { deviceId, messageEventId } = req.params;
+
+            if (!deviceId || !messageEventId) {
+                return res.status(400).json({
+                    status: 'error',
+                    message: 'deviceId와 messageEventId는 필수입니다.',
+                });
+            }
+
+            const { status, errorCode, errorMessage } = req.body || {};
+
+            if (!status) {
+                return res.status(400).json({
+                    status: 'error',
+                    message: 'status는 필수입니다.',
+                });
+            }
+
+            if (status !== 'sent' && status !== 'failed') {
+                return res.status(400).json({
+                    status: 'error',
+                    message: "status는 'sent' 또는 'failed'만 허용됩니다.",
+                });
+            }
+
+            const updated = await markOutboundSmsAsCompletedForDevice(
+                deviceId,
+                messageEventId,
+                status,
+                errorCode,
+                errorMessage,
+            );
+
+            if (!updated) {
+                return res.status(404).json({
+                    status: 'error',
+                    message: '해당 발신 SMS 이벤트를 찾을 수 없습니다.',
+                });
+            }
+
+            return res.status(200).json({
+                status: 'success',
+                data: {
+                    messageEventId,
+                    status,
+                },
+            });
+        } catch (error) {
+            logger.error('에이전트 발신 SMS 상태 보고 중 오류', { error });
+            return res.status(500).json({
+                status: 'error',
+                message: '에이전트 발신 SMS 상태 보고 중 오류가 발생했습니다.',
+            });
+        }
+    },
+);
 
 export default router;

@@ -17,6 +17,18 @@ interface Device {
   agentVersion?: string | null;
 }
 
+interface DeviceSummary {
+  device: Device;
+  messages: {
+    inboundCount: number;
+    outboundCount: number;
+    outboundSentCount: number;
+    outboundFailedCount: number;
+    lastInboundAt: string | null;
+    lastOutboundAt: string | null;
+  };
+}
+
 export default function DevicesPage() {
   const router = useRouter();
   const [devices, setDevices] = useState<Device[]>([]);
@@ -26,6 +38,9 @@ export default function DevicesPage() {
   const [name, setName] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [selectedSummary, setSelectedSummary] = useState<DeviceSummary | null>(null);
+  const [summaryLoading, setSummaryLoading] = useState(false);
+  const [summaryError, setSummaryError] = useState<string | null>(null);
 
   useEffect(() => {
     const token =
@@ -116,6 +131,44 @@ export default function DevicesPage() {
     }
   };
 
+  const handleViewSummary = async (targetDeviceId: string) => {
+    const token =
+      typeof window !== "undefined" ? window.localStorage.getItem("autohub_token") : null;
+
+    if (!token) {
+      router.replace("/login");
+      return;
+    }
+
+    setSummaryLoading(true);
+    setSummaryError(null);
+    setSelectedSummary(null);
+
+    try {
+      const res = await fetch(
+        `${API_BASE_URL}/api/devices/${encodeURIComponent(targetDeviceId)}/summary`,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        },
+      );
+      const json = await res.json();
+
+      if (!res.ok) {
+        throw new Error(json?.message || "디바이스 요약 정보를 가져오지 못했습니다.");
+      }
+
+      if (json?.data) {
+        setSelectedSummary(json.data as DeviceSummary);
+      }
+    } catch (err: any) {
+      setSummaryError(err?.message || "디바이스 요약 정보 조회 중 오류가 발생했습니다.");
+    } finally {
+      setSummaryLoading(false);
+    }
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-slate-900 text-slate-100">
@@ -191,9 +244,10 @@ export default function DevicesPage() {
                 <tbody>
                   {devices.map((d) => {
                     const lastSeenDate = d.lastSeenAt ? new Date(d.lastSeenAt) : null;
-                    const isOnline = lastSeenDate
-                      ? Date.now() - lastSeenDate.getTime() < 5 * 60 * 1000
-                      : false;
+                    const isOnline =
+                      lastSeenDate && !Number.isNaN(lastSeenDate.getTime())
+                        ? Date.now() - lastSeenDate.getTime() < 5 * 60 * 1000
+                        : false;
 
                     return (
                       <tr key={d.id} className="border-b border-slate-800">
@@ -240,45 +294,84 @@ export default function DevicesPage() {
                             <button
                               type="button"
                               className="rounded-md bg-sky-500 hover:bg-sky-600 px-2 py-1 text-xs"
-                              onClick={() => router.push(`/messages?deviceId=${encodeURIComponent(d.deviceId)}`)}
+                              onClick={() =>
+                                router.push(`/messages?deviceId=${encodeURIComponent(d.deviceId)}`)
+                              }
                             >
                               메시지 보기
+                            </button>
+                            <button
+                              type="button"
+                              className="rounded-md bg-slate-700 hover:bg-slate-600 px-2 py-1 text-xs"
+                              onClick={() => handleViewSummary(d.deviceId)}
+                            >
+                              상세
                             </button>
                           </div>
                         </td>
                       </tr>
                     );
                   })}
-                          <button
-                            type="button"
-                            className="rounded-md bg-slate-700 hover:bg-slate-600 px-2 py-1 text-xs"
-                            onClick={async () => {
-                              try {
-                                await navigator.clipboard.writeText(d.deviceId);
-                                setCopiedId(d.deviceId);
-                              } catch (e) {
-                                setCopiedId(d.deviceId);
-                              }
-                            }}
-                          >
-                            ID 복사
-                          </button>
-                          <button
-                            type="button"
-                            className="rounded-md bg-sky-500 hover:bg-sky-600 px-2 py-1 text-xs"
-                            onClick={() => router.push(`/messages?deviceId=${encodeURIComponent(d.deviceId)}`)}
-                          >
-                            메시지 보기
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
                 </tbody>
               </table>
             </div>
           )}
         </div>
+
+        {selectedSummary && (
+          <div className="border border-slate-700 rounded-lg p-4 bg-slate-900/40">
+            <p className="font-semibold text-sm mb-2">선택된 디바이스 요약</p>
+            {summaryLoading && (
+              <p className="text-xs text-slate-300 mb-1">요약 정보를 불러오는 중...</p>
+            )}
+            <div className="text-xs space-y-1">
+              <p>
+                <span className="font-semibold">deviceId: </span>
+                {selectedSummary.device.deviceId}
+              </p>
+              <p>
+                <span className="font-semibold">이름: </span>
+                {selectedSummary.device.name || "-"}
+              </p>
+              <p>
+                <span className="font-semibold">에이전트 버전: </span>
+                {selectedSummary.device.agentVersion || "-"}
+              </p>
+              <p>
+                <span className="font-semibold">상태: </span>
+                {selectedSummary.device.status}
+              </p>
+              <p>
+                <span className="font-semibold">수신(Inbound): </span>
+                {selectedSummary.messages.inboundCount.toLocaleString()} 건
+              </p>
+              <p>
+                <span className="font-semibold">발신(Outbound): </span>
+                {selectedSummary.messages.outboundCount.toLocaleString()} 건
+              </p>
+              <p>
+                <span className="font-semibold">발신 성공/실패: </span>
+                {selectedSummary.messages.outboundSentCount.toLocaleString()} / {" "}
+                {selectedSummary.messages.outboundFailedCount.toLocaleString()} 건
+              </p>
+              <p>
+                <span className="font-semibold">마지막 수신 시각: </span>
+                {selectedSummary.messages.lastInboundAt
+                  ? new Date(selectedSummary.messages.lastInboundAt).toLocaleString()
+                  : "-"}
+              </p>
+              <p>
+                <span className="font-semibold">마지막 발신 시각: </span>
+                {selectedSummary.messages.lastOutboundAt
+                  ? new Date(selectedSummary.messages.lastOutboundAt).toLocaleString()
+                  : "-"}
+              </p>
+            </div>
+            {summaryError && (
+              <p className="text-xs text-red-300 mt-2">{summaryError}</p>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );

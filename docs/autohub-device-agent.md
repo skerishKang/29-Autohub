@@ -96,6 +96,8 @@ MVP 단계에서는 필수가 아니지만, 확장 옵션으로 다음 정보를
   - AutoHub 백엔드와 HTTP 통신을 위해 필수.
 - `android.permission.RECEIVE_SMS`
   - 인바운드 SMS를 수신하기 위해 필요.
+- `android.permission.SEND_SMS`
+  - 안드로이드 단말에서 실제 SMS 발신을 수행하기 위해 필요.
 
 > 참고: Android 6.0 (API 23) 이상에서는 `RECEIVE_SMS` 는 런타임 권한 요청이 필요하다.
 > - 앱 실행 시 또는 설정 화면에서 권한 상태를 확인하고, 필요 시 사용자에게 권한을 요청하는 UI를 제공해야 한다.

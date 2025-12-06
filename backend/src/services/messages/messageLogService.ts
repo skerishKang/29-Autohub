@@ -219,3 +219,55 @@ export async function markOutboundSmsAsCompletedForDevice(
 
   return (result.rowCount ?? 0) > 0;
 }
+
+export interface DeviceMessageSummary {
+  inboundCount: number;
+  outboundCount: number;
+  outboundSentCount: number;
+  outboundFailedCount: number;
+  lastInboundAt: Date | null;
+  lastOutboundAt: Date | null;
+}
+
+export async function getMessageSummaryForDevice(
+  tenantId: string,
+  deviceId: string,
+): Promise<DeviceMessageSummary> {
+  const pool: Pool = getDbPool();
+
+  const result = await pool.query(
+    `SELECT
+        COUNT(*) FILTER (WHERE direction = 'inbound') AS inbound_count,
+        COUNT(*) FILTER (WHERE direction = 'outbound') AS outbound_count,
+        COUNT(*) FILTER (WHERE direction = 'outbound' AND status = 'sent') AS outbound_sent_count,
+        COUNT(*) FILTER (WHERE direction = 'outbound' AND status = 'failed') AS outbound_failed_count,
+        MAX(CASE WHEN direction = 'inbound' THEN COALESCE(received_at, created_at) END) AS last_inbound_at,
+        MAX(CASE WHEN direction = 'outbound' THEN COALESCE(received_at, created_at) END) AS last_outbound_at
+      FROM message_events
+      WHERE tenant_id = $1
+        AND device_id = $2`,
+    [tenantId, deviceId],
+  );
+
+  if ((result.rowCount ?? 0) === 0) {
+    return {
+      inboundCount: 0,
+      outboundCount: 0,
+      outboundSentCount: 0,
+      outboundFailedCount: 0,
+      lastInboundAt: null,
+      lastOutboundAt: null,
+    };
+  }
+
+  const row = result.rows[0] as any;
+
+  return {
+    inboundCount: Number(row.inbound_count ?? 0),
+    outboundCount: Number(row.outbound_count ?? 0),
+    outboundSentCount: Number(row.outbound_sent_count ?? 0),
+    outboundFailedCount: Number(row.outbound_failed_count ?? 0),
+    lastInboundAt: row.last_inbound_at ?? null,
+    lastOutboundAt: row.last_outbound_at ?? null,
+  };
+}

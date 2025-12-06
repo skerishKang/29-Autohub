@@ -1,7 +1,8 @@
 import { Router, Request, Response } from 'express';
 import { authMiddleware, AuthenticatedRequest } from '../middleware/auth';
 import { getOrCreateTenantIdForUser } from '../services/billing/billingService';
-import { listDevicesForTenant, registerDeviceForTenant } from '../services/devices/deviceService';
+import { listDevicesForTenant, registerDeviceForTenant, getDeviceByDeviceId } from '../services/devices/deviceService';
+import { getMessageSummaryForDevice } from '../services/messages/messageLogService';
 
 const router = Router();
 
@@ -74,6 +75,54 @@ router.post('/', authMiddleware, async (req: AuthenticatedRequest, res: Response
     return res.status(500).json({
       status: 'error',
       message: '디바이스 등록 중 오류가 발생했습니다.',
+    });
+  }
+});
+
+// 특정 deviceId에 대한 요약 정보 조회
+router.get('/:deviceId/summary', authMiddleware, async (req: AuthenticatedRequest, res: Response) => {
+  if (!req.user) {
+    return res.status(401).json({
+      status: 'error',
+      message: '인증 정보가 없습니다.',
+    });
+  }
+
+  const { deviceId } = req.params;
+
+  if (!deviceId) {
+    return res.status(400).json({
+      status: 'error',
+      message: 'deviceId 파라미터는 필수입니다.',
+    });
+  }
+
+  try {
+    const { sub: userId, email } = req.user;
+    const tenantId = await getOrCreateTenantIdForUser(userId, email);
+
+    const device = await getDeviceByDeviceId(deviceId);
+
+    if (!device || device.tenantId !== tenantId) {
+      return res.status(404).json({
+        status: 'error',
+        message: '해당 디바이스를 찾을 수 없습니다.',
+      });
+    }
+
+    const summary = await getMessageSummaryForDevice(tenantId, deviceId);
+
+    return res.status(200).json({
+      status: 'success',
+      data: {
+        device,
+        messages: summary,
+      },
+    });
+  } catch (error) {
+    return res.status(500).json({
+      status: 'error',
+      message: '디바이스 요약 정보를 불러오는 중 오류가 발생했습니다.',
     });
   }
 });

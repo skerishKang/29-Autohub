@@ -21,4 +21,6 @@ Thumbs.db
 
 # Logs
 *.log
-"backend/secrets/autohub-dev-firebase-adminsdk-fbsvc-10886a60e5.json" 
+backend/secrets/autohub-dev-firebase-adminsdk-fbsvc-10886a60e5.json
+autohub-dev-firebase-adminsdk-*.json
+ 

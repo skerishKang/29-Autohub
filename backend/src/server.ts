@@ -18,6 +18,9 @@ import { initializeTelegramBot } from './services/telegram/telegramService';
 import { initializeN8nWebhooks } from './services/n8n/n8nService';
 import { startHealthChecks } from './services/health/healthService';
 import { initializeUserService } from './services/users/userService';
+import { initializeBillingService } from './services/billing/billingService';
+import { initializeMessageLogService } from './services/messages/messageLogService';
+import { initializeDeviceService } from './services/devices/deviceService';
 
 // 라우트 임포트
 import smsRoutes from './routes/sms';
@@ -27,6 +30,11 @@ import webhookRoutes from './routes/webhooks';
 import analyticsRoutes from './routes/analytics';
 import healthRoutes from './routes/health';
 import authRoutes from './routes/auth';
+import billingRoutes from './routes/billing';
+import deviceRoutes from './routes/devices';
+import messageRoutes from './routes/messages';
+import adminRoutes from './routes/admin';
+import agentRoutes from './routes/agent';
 
 // 환경 변수 로드
 dotenv.config();
@@ -56,6 +64,14 @@ app.use(cors({
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization', 'X-API-Key'],
 }));
+
+// Firebase 인증 브릿지에 대한 프리플라이트(OPTIONS) 요청 명시 처리
+app.options('/api/auth/firebase', (req, res) => {
+    res.header('Access-Control-Allow-Origin', '*');
+    res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+    res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-API-Key');
+    res.sendStatus(204);
+});
 
 // 속도 제한
 const limiter = rateLimit({
@@ -97,6 +113,11 @@ app.use('/api/notifications', notificationRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/webhooks', webhookRoutes);
 app.use('/api/analytics', analyticsRoutes);
+app.use('/api/billing', billingRoutes);
+app.use('/api/devices', deviceRoutes);
+app.use('/api/agent', agentRoutes);
+app.use('/api/messages', messageRoutes);
+app.use('/api/admin', adminRoutes);
 
 // 인증이 필요한 라우트
 app.use('/api/protected', authMiddleware);
@@ -139,6 +160,9 @@ async function startServer() {
 
         // 유저 서비스 초기화 (users 테이블 생성 등)
         await initializeUserService();
+        await initializeBillingService();
+        await initializeMessageLogService();
+        await initializeDeviceService();
         
         // Redis 연결
         await connectRedis();

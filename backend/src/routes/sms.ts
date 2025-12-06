@@ -3,6 +3,9 @@ import { logger } from '../config/logger';
 import { AIFilteringService } from '../services/ai/aiFilteringService';
 import { forwardToN8n } from '../services/n8n/n8nService';
 import { MessageAnalysisResult } from '../services/types';
+import { logInboundSmsEvent } from '../services/messages/messageLogService';
+import { findTenantIdByDeviceId } from '../services/devices/deviceService';
+import { consumeCreditsForTenant } from '../services/billing/billingService';
 
 const router = Router();
 
@@ -61,6 +64,36 @@ router.post('/', async (
             receivedAt,
             raw,
         };
+
+        let tenantId: string | null = null;
+        try {
+            tenantId = await findTenantIdByDeviceId(deviceId);
+        } catch (error) {
+            logger.error('디바이스 기준 테넌트 조회 중 오류', { error, deviceId });
+        }
+
+        await logInboundSmsEvent({
+            deviceId,
+            messageId,
+            sender,
+            body,
+            receivedAt,
+            tenantId: tenantId ?? undefined,
+        });
+
+        if (tenantId) {
+            // 수신 1건당 0.5 크레딧 차감 (소프트 리미트, 마이너스 허용)
+            try {
+                await consumeCreditsForTenant(tenantId, 0.5, 'inbound:sms', {
+                    deviceId,
+                    messageId,
+                    sender,
+                });
+            } catch (error) {
+                // 과금 실패는 로깅만 하고 수신 처리 자체는 성공으로 유지
+                logger.error('인바운드 SMS 크레딧 차감 중 오류', { error, deviceId, tenantId });
+            }
+        }
 
         let analysis: MessageAnalysisResult | null = null;
         const aiService = getAiService();

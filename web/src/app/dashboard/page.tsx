@@ -42,6 +42,17 @@ interface AnalyticsSummary {
   outboundSuccessRate: number | null;
 }
 
+interface DeviceForDashboard {
+  id: string;
+  tenantId: string;
+  deviceId: string;
+  name: string | null;
+  status: string;
+  createdAt: string;
+  updatedAt: string;
+  lastSeenAt?: string | null;
+}
+
 export default function DashboardPage() {
   const router = useRouter();
   const [user, setUser] = useState<MeData | null>(null);
@@ -53,6 +64,11 @@ export default function DashboardPage() {
   const [selectedPlanCode, setSelectedPlanCode] = useState<string | null>(null);
   const [changingPlan, setChangingPlan] = useState(false);
   const [planError, setPlanError] = useState<string | null>(null);
+  const [deviceStats, setDeviceStats] = useState<{
+    total: number;
+    online: number;
+    offline: number;
+  } | null>(null);
 
   // 마운트 시 /api/users/me 호출로 사용자 정보 조회
   useEffect(() => {
@@ -108,6 +124,37 @@ export default function DashboardPage() {
           }
         } catch {
           // 통계 섹션만 비워두고 무시
+        }
+
+        // 디바이스 상태 요약 조회 (실패해도 무시)
+        try {
+          const devicesRes = await fetch(`${API_BASE_URL}/api/devices`, {
+            headers,
+          });
+          const devicesJson = await devicesRes.json();
+
+          if (devicesRes.ok && devicesJson?.data?.devices) {
+            const devices = devicesJson.data.devices as DeviceForDashboard[];
+            const now = Date.now();
+            const ONLINE_THRESHOLD_MS = 5 * 60 * 1000;
+
+            const total = devices.length;
+            let online = 0;
+
+            for (const d of devices) {
+              if (!d.lastSeenAt) continue;
+              const lastSeenTime = new Date(d.lastSeenAt).getTime();
+              if (!Number.isNaN(lastSeenTime) && now - lastSeenTime < ONLINE_THRESHOLD_MS) {
+                online += 1;
+              }
+            }
+
+            const offline = total > online ? total - online : 0;
+
+            setDeviceStats({ total, online, offline });
+          }
+        } catch {
+          // 디바이스 상태 요약 조회 실패는 무시
         }
       } catch (err: any) {
         setError(err?.message || "사용자 정보 조회 중 오류가 발생했습니다.");
@@ -323,6 +370,26 @@ export default function DashboardPage() {
                       (성공률 {(analytics.outboundSuccessRate * 100).toFixed(1)}%)
                     </span>
                   )}
+                </p>
+              </div>
+            )}
+
+            {deviceStats && (
+              <div className="mt-4 rounded-lg border border-slate-700 bg-slate-900/50 p-4 text-sm space-y-2">
+                <p className="font-semibold">디바이스 상태 요약</p>
+                <p>
+                  <span className="font-semibold">전체 디바이스: </span>
+                  {deviceStats.total.toLocaleString()}대
+                </p>
+                <p>
+                  <span className="font-semibold">온라인: </span>
+                  <span className="text-emerald-300">
+                    {deviceStats.online.toLocaleString()}대
+                  </span>
+                  <span className="ml-3 font-semibold">오프라인: </span>
+                  <span className="text-slate-300">
+                    {deviceStats.offline.toLocaleString()}대
+                  </span>
                 </p>
               </div>
             )}

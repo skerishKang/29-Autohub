@@ -9,6 +9,7 @@ const router = Router();
 interface AgentDeviceRegisterBody {
     deviceId?: string;
     name?: string;
+    agentVersion?: string;
 }
 
 interface OutboundSmsAckBody {
@@ -47,7 +48,7 @@ router.post('/devices/register', async (req: Request<unknown, unknown, AgentDevi
             });
         }
 
-        const { deviceId, name } = req.body || {};
+        const { deviceId, name, agentVersion } = req.body || {};
 
         if (!deviceId) {
             return res.status(400).json({
@@ -57,9 +58,9 @@ router.post('/devices/register', async (req: Request<unknown, unknown, AgentDevi
         }
 
         const tenantId = await getOrCreateAgentTenant();
-        await registerDeviceForTenant(tenantId, deviceId, name);
+        await registerDeviceForTenant(tenantId, deviceId, name, agentVersion);
 
-        logger.info('에이전트 디바이스 등록 완료', { tenantId, deviceId });
+        logger.info('에이전트 디바이스 등록 완료', { tenantId, deviceId, agentVersion });
 
         return res.status(201).json({
             status: 'success',

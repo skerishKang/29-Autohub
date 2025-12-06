@@ -61,6 +61,7 @@ router.post('/', authMiddleware, async (req: AuthenticatedRequest, res: Response
     const { sub: userId, email } = req.user;
     const tenantId = await getOrCreateTenantIdForUser(userId, email);
 
+    // 웹에서 등록하는 디바이스에는 agentVersion 정보를 별도로 받지 않는다.
     await registerDeviceForTenant(tenantId, deviceId, name);
 
     return res.status(201).json({

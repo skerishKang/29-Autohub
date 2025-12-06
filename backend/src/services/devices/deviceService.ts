@@ -14,6 +14,7 @@ export interface Device {
   createdAt: Date;
   updatedAt: Date;
   lastSeenAt: Date | null;
+  agentVersion: string | null;
 }
 
 export async function initializeDeviceService(): Promise<void> {
@@ -30,11 +31,13 @@ export async function initializeDeviceService(): Promise<void> {
       status TEXT NOT NULL DEFAULT 'active',
       created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
       updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-      last_seen_at TIMESTAMPTZ
+      last_seen_at TIMESTAMPTZ,
+      agent_version TEXT
     );
 
     CREATE INDEX IF NOT EXISTS idx_devices_tenant_id ON devices(tenant_id);
     ALTER TABLE devices ADD COLUMN IF NOT EXISTS last_seen_at TIMESTAMPTZ;
+    ALTER TABLE devices ADD COLUMN IF NOT EXISTS agent_version TEXT;
   `;
 
   await pool.query(ddl);
@@ -62,23 +65,25 @@ export async function registerDeviceForTenant(
   tenantId: string,
   deviceId: string,
   name?: string,
+  agentVersion?: string,
 ): Promise<void> {
   const pool: Pool = getDbPool();
 
   const id = uuidv4();
 
   await pool.query(
-    `INSERT INTO devices (id, tenant_id, device_id, name, last_seen_at)
-     VALUES ($1, $2, $3, $4, now())
+    `INSERT INTO devices (id, tenant_id, device_id, name, last_seen_at, agent_version)
+     VALUES ($1, $2, $3, $4, now(), $5)
      ON CONFLICT (device_id) DO UPDATE SET
        tenant_id = EXCLUDED.tenant_id,
        name = COALESCE(EXCLUDED.name, devices.name),
        last_seen_at = now(),
+       agent_version = COALESCE(EXCLUDED.agent_version, devices.agent_version),
        updated_at = now()`,
-    [id, tenantId, deviceId, name ?? null],
+    [id, tenantId, deviceId, name ?? null, agentVersion ?? null],
   );
 
-  logger.info('디바이스 등록/업데이트', { tenantId, deviceId });
+  logger.info('디바이스 등록/업데이트', { tenantId, deviceId, agentVersion });
 }
 
 function mapRowToDevice(row: any): Device {
@@ -91,6 +96,7 @@ function mapRowToDevice(row: any): Device {
     createdAt: row.created_at,
     updatedAt: row.updated_at,
     lastSeenAt: row.last_seen_at ?? null,
+    agentVersion: row.agent_version ?? null,
   };
 }
 

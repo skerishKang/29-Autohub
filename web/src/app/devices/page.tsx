@@ -14,6 +14,7 @@ interface Device {
   createdAt: string;
   updatedAt: string;
   lastSeenAt?: string | null;
+  agentVersion?: string | null;
 }
 
 export default function DevicesPage() {
@@ -180,6 +181,7 @@ export default function DevicesPage() {
                   <tr className="border-b border-slate-700 text-left text-slate-300">
                     <th className="py-2 pr-4">deviceId</th>
                     <th className="py-2 pr-4">이름</th>
+                    <th className="py-2 pr-4">에이전트 버전</th>
                     <th className="py-2 pr-4">상태</th>
                     <th className="py-2 pr-4">마지막 통신</th>
                     <th className="py-2 pr-4">생성일</th>
@@ -197,6 +199,9 @@ export default function DevicesPage() {
                       <tr key={d.id} className="border-b border-slate-800">
                         <td className="py-2 pr-4 font-mono text-xs">{d.deviceId}</td>
                         <td className="py-2 pr-4">{d.name || "-"}</td>
+                        <td className="py-2 pr-4 text-xs text-slate-300">
+                          {d.agentVersion || "-"}
+                        </td>
                         <td className="py-2 pr-4">
                           <span>{d.status}</span>
                           {lastSeenDate && (
@@ -244,7 +249,6 @@ export default function DevicesPage() {
                       </tr>
                     );
                   })}
-                        <div className="flex gap-2">
                           <button
                             type="button"
                             className="rounded-md bg-slate-700 hover:bg-slate-600 px-2 py-1 text-xs"

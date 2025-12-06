@@ -4,7 +4,7 @@ import { AIFilteringService } from '../services/ai/aiFilteringService';
 import { forwardToN8n } from '../services/n8n/n8nService';
 import { MessageAnalysisResult } from '../services/types';
 import { logInboundSmsEvent } from '../services/messages/messageLogService';
-import { findTenantIdByDeviceId } from '../services/devices/deviceService';
+import { findTenantIdByDeviceId, updateDeviceLastSeenAt } from '../services/devices/deviceService';
 import { consumeCreditsForTenant } from '../services/billing/billingService';
 
 const router = Router();
@@ -64,6 +64,13 @@ router.post('/', async (
             receivedAt,
             raw,
         };
+
+        // 디바이스 마지막 통신 시각 업데이트 (등록 여부와 무관하게 시도)
+        try {
+            await updateDeviceLastSeenAt(deviceId);
+        } catch (error) {
+            logger.error('디바이스 last_seen_at 업데이트 중 오류', { error, deviceId });
+        }
 
         let tenantId: string | null = null;
         try {

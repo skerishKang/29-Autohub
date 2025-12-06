@@ -13,6 +13,7 @@ interface Device {
   status: string;
   createdAt: string;
   updatedAt: string;
+  lastSeenAt?: string | null;
 }
 
 export default function DevicesPage() {
@@ -180,20 +181,69 @@ export default function DevicesPage() {
                     <th className="py-2 pr-4">deviceId</th>
                     <th className="py-2 pr-4">이름</th>
                     <th className="py-2 pr-4">상태</th>
+                    <th className="py-2 pr-4">마지막 통신</th>
                     <th className="py-2 pr-4">생성일</th>
                     <th className="py-2 pr-4">액션</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {devices.map((d) => (
-                    <tr key={d.id} className="border-b border-slate-800">
-                      <td className="py-2 pr-4 font-mono text-xs">{d.deviceId}</td>
-                      <td className="py-2 pr-4">{d.name || "-"}</td>
-                      <td className="py-2 pr-4">{d.status}</td>
-                      <td className="py-2 pr-4 text-xs text-slate-400">
-                        {new Date(d.createdAt).toLocaleString()}
-                      </td>
-                      <td className="py-2 pr-4">
+                  {devices.map((d) => {
+                    const lastSeenDate = d.lastSeenAt ? new Date(d.lastSeenAt) : null;
+                    const isOnline = lastSeenDate
+                      ? Date.now() - lastSeenDate.getTime() < 5 * 60 * 1000
+                      : false;
+
+                    return (
+                      <tr key={d.id} className="border-b border-slate-800">
+                        <td className="py-2 pr-4 font-mono text-xs">{d.deviceId}</td>
+                        <td className="py-2 pr-4">{d.name || "-"}</td>
+                        <td className="py-2 pr-4">
+                          <span>{d.status}</span>
+                          {lastSeenDate && (
+                            <span
+                              className={
+                                "ml-2 text-xs " +
+                                (isOnline ? "text-emerald-300" : "text-slate-400")
+                              }
+                            >
+                              {isOnline ? "온라인" : "오프라인"}
+                            </span>
+                          )}
+                        </td>
+                        <td className="py-2 pr-4 text-xs text-slate-400">
+                          {lastSeenDate ? lastSeenDate.toLocaleString() : "-"}
+                        </td>
+                        <td className="py-2 pr-4 text-xs text-slate-400">
+                          {new Date(d.createdAt).toLocaleString()}
+                        </td>
+                        <td className="py-2 pr-4">
+                          <div className="flex gap-2">
+                            <button
+                              type="button"
+                              className="rounded-md bg-slate-700 hover:bg-slate-600 px-2 py-1 text-xs"
+                              onClick={async () => {
+                                try {
+                                  await navigator.clipboard.writeText(d.deviceId);
+                                  setCopiedId(d.deviceId);
+                                } catch (e) {
+                                  setCopiedId(d.deviceId);
+                                }
+                              }}
+                            >
+                              ID 복사
+                            </button>
+                            <button
+                              type="button"
+                              className="rounded-md bg-sky-500 hover:bg-sky-600 px-2 py-1 text-xs"
+                              onClick={() => router.push(`/messages?deviceId=${encodeURIComponent(d.deviceId)}`)}
+                            >
+                              메시지 보기
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
                         <div className="flex gap-2">
                           <button
                             type="button"

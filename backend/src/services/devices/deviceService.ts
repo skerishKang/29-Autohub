@@ -13,6 +13,7 @@ export interface Device {
   status: string;
   createdAt: Date;
   updatedAt: Date;
+  lastSeenAt: Date | null;
 }
 
 export async function initializeDeviceService(): Promise<void> {
@@ -28,10 +29,12 @@ export async function initializeDeviceService(): Promise<void> {
       name TEXT,
       status TEXT NOT NULL DEFAULT 'active',
       created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-      updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+      last_seen_at TIMESTAMPTZ
     );
 
     CREATE INDEX IF NOT EXISTS idx_devices_tenant_id ON devices(tenant_id);
+    ALTER TABLE devices ADD COLUMN IF NOT EXISTS last_seen_at TIMESTAMPTZ;
   `;
 
   await pool.query(ddl);
@@ -65,11 +68,12 @@ export async function registerDeviceForTenant(
   const id = uuidv4();
 
   await pool.query(
-    `INSERT INTO devices (id, tenant_id, device_id, name)
-     VALUES ($1, $2, $3, $4)
+    `INSERT INTO devices (id, tenant_id, device_id, name, last_seen_at)
+     VALUES ($1, $2, $3, $4, now())
      ON CONFLICT (device_id) DO UPDATE SET
        tenant_id = EXCLUDED.tenant_id,
        name = COALESCE(EXCLUDED.name, devices.name),
+       last_seen_at = now(),
        updated_at = now()`,
     [id, tenantId, deviceId, name ?? null],
   );
@@ -86,6 +90,7 @@ function mapRowToDevice(row: any): Device {
     status: row.status,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
+    lastSeenAt: row.last_seen_at ?? null,
   };
 }
 
@@ -117,4 +122,16 @@ export async function getDeviceByDeviceId(deviceId: string): Promise<Device | nu
   }
 
   return mapRowToDevice(result.rows[0]);
+}
+
+export async function updateDeviceLastSeenAt(deviceId: string): Promise<void> {
+  const pool: Pool = getDbPool();
+
+  await pool.query(
+    `UPDATE devices
+       SET last_seen_at = now(),
+           updated_at = now()
+     WHERE device_id = $1`,
+    [deviceId],
+  );
 }

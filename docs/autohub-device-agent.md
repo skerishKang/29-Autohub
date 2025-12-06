@@ -19,10 +19,10 @@ AutoHub 디바이스 에이전트(Android)는 다음 역할을 담당한다.
 1. 사용자가 디바이스에 AutoHub 디바이스 에이전트 앱을 설치한다.
 2. 앱을 실행하면 **설정 화면**이 표시된다.
 3. 사용자가 다음 값을 입력한다.
-   - API Base URL (예: `http://10.0.2.2:3000` 또는 `https://api.autohub.io`)
+   - API Base URL (예: `http://10.0.2.2:3029` 또는 `https://api.autohub.io`)
    - Device ID (테넌트 콘솔에서 발급하거나 사용자가 직접 지정)
    - Device Name (옵션, 사람이 알아보기 쉬운 이름)
-4. "서버에 디바이스 등록" 버튼을 누르면 앱은 AutoHub 백엔드의 디바이스 등록 API (`POST /api/devices` 또는 전용 에이전트 등록 API) 를 호출한다.
+4. "서버에 디바이스 등록" 버튼을 누르면 앱은 AutoHub 백엔드의 에이전트 전용 디바이스 등록 API (`POST /api/agent/devices/register`) 를 `x-agent-secret` 헤더와 함께 호출한다.
 5. 등록이 성공하면 **설정값을 로컬에 영구 저장**하고, 이후 SMS 포워딩 시 이 값을 사용한다.
 
 ### 2.2 인바운드 SMS 수신 및 포워딩
@@ -71,7 +71,7 @@ AutoHub 디바이스 에이전트(Android)는 다음 역할을 담당한다.
   - 앱 시작 시 `AgentConfigStore.load(context)` 로 저장된 설정이 있으면 필드에 채운다.
   - "서버에 디바이스 등록" 클릭 시
     - 필수 값 검증 (Base URL, Device ID)
-    - `POST {apiBaseUrl}/api/devices` 로 `{ deviceId, name }` 전송
+    - `POST {apiBaseUrl}/api/agent/devices/register` 로 `{ deviceId, name }` 전송 (HTTP 헤더 `x-agent-secret` 포함)
     - 성공 시
       - `AgentConfigStore.save()` 를 통해 설정 저장
       - "등록 성공" 메시지 표시
@@ -137,7 +137,8 @@ MVP 단계에서는 필수가 아니지만, 확장 옵션으로 다음 정보를
   - 버튼 클릭 시 `registerDevice()` 호출 후 성공이면 `AgentConfigStore.save()` 수행
 - `registerDevice(apiBaseUrl, deviceId, deviceName)`
   - OkHttp 사용
-  - `POST {apiBaseUrl}/api/devices`
+  - `POST {apiBaseUrl}/api/agent/devices/register`
+  - HTTP 헤더 `x-agent-secret` 포함 (환경변수 `AGENT_REGISTRATION_SECRET` 기반 시크릿)
   - JSON: `{ "deviceId": "...", "name": "..." }`
 
 ### 5.3 SMS 수신 및 포워딩 (`SmsReceiver.kt`)
@@ -161,7 +162,7 @@ MVP 단계에서는 필수가 아니지만, 확장 옵션으로 다음 정보를
 
 ### 6.1 디바이스 등록 API (초안)
 
-- 엔드포인트: `POST /api/devices`
+- 엔드포인트: `POST /api/agent/devices/register`
 - 요청 바디 예시
 
 ```json
@@ -186,10 +187,9 @@ MVP 단계에서는 필수가 아니지만, 확장 옵션으로 다음 정보를
 ```
 
 - 인증/권한
-  - 현재 구현된 `/api/devices` 라우트는 JWT 인증을 요구한다.
-  - 디바이스 에이전트용 등록 방식은 다음 옵션 중 하나를 선택해 설계해야 한다.
-    - 별도 "에이전트 등록 토큰" 을 발급해 헤더로 전달
-    - 초기 등록은 관리자 콘솔에서 수행하고, 디바이스 앱은 읽기 전용 토큰만 사용
+  - 이 엔드포인트는 JWT 대신 `x-agent-secret` 헤더 기반 시크릿으로 보호된다.
+  - 시크릿 값은 서버 환경변수 `AGENT_REGISTRATION_SECRET` 로 설정하며, 미설정 시 기본값 `dev-agent-secret` 이 사용된다.
+  - 운영 환경에서는 충분히 복잡한 시크릿을 사용하고, 필요 시 주기적으로 교체할 수 있다.
 
 ### 6.2 인바운드 SMS API
 
@@ -225,6 +225,33 @@ interface SmsRequestBody {
   - 테넌트가 있으면 `consumeCreditsForTenant(tenantId, 0.5, 'inbound:sms', ...)` 호출
   - n8n 웹훅으로 전체 payload + 분석 결과 전달
 
+### 6.3 n8n 연동 플로우 예시
+
+여기서는 인바운드 SMS를 받아 간단히 Slack으로 알림을 보내는 예시 플로우를 설명한다.
+
+- 기본 아이디어
+  - AutoHub 백엔드가 인바운드 SMS를 수신하면, 설정된 n8n 웹훅으로 payload를 전송한다.
+  - n8n 플로우는 이 payload를 받아 조건에 따라 분기하고, Slack/이메일/웹훅 등으로 전달한다.
+
+- 예시 플로우 구조
+  1. **Webhook 노드**
+     - HTTP Method: `POST`
+     - Path: `/autohub/inbound-sms`
+     - AutoHub 백엔드의 n8n 웹훅 URL로 설정 (예: `https://n8n.example.com/webhook/autohub/inbound-sms`).
+  2. **Switch(조건 분기) 노드**
+     - 입력: Webhook 노드의 JSON 바디 (예: `{{$json.body}}`).
+     - 조건 예시:
+       - `body` 에 특정 키워드 포함 여부 (예: "가입", "해지").
+       - `sender` 번호별로 다른 채널로 라우팅.
+  3. **Slack 노드 (또는 Email 노드)**
+     - 메시지 텍스트 예시:
+       - `From: {{$json.sender}}\nDevice: {{$json.deviceId}}\nBody: {{$json.body}}`
+     - 채널: `#autohub-sms`
+
+- 운영 팁
+  - n8n 플로우 안에서 AutoHub의 다른 API(예: `/api/notifications` 또는 외부 API)를 추가로 호출해, SMS 내용을 기반으로 자동 응답/후속 작업을 트리거할 수 있다.
+  - 테스트용 디바이스에서만 동작하도록 `deviceId` 화이트리스트를 두고 시작하는 것을 추천한다.
+
 ---
 
 ## 7. 향후 작업 항목
@@ -234,7 +261,7 @@ interface SmsRequestBody {
   - 상태/로그 화면 추가 여부 결정 및 구현
   - 발신 SMS 처리 플로우 설계 및 구현 (서버 명령 → 단말 발신 → 서버 보고)
 - 백엔드
-  - 디바이스 에이전트용 등록/인증 전략 설계 및 구현
+  - (완료) 디바이스 에이전트용 등록/인증 전략 설계 및 구현 (`/api/agent/devices/register`, `x-agent-secret`, `AGENT_REGISTRATION_SECRET`)
   - 에이전트 버전/상태(온라인 여부, 마지막 통신 시각 등) 모니터링 API 설계
 - 운영
   - 디바이스 등록/관리 UI에서 에이전트 상태 표시

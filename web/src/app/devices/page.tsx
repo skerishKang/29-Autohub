@@ -23,6 +23,7 @@ export default function DevicesPage() {
   const [deviceId, setDeviceId] = useState("");
   const [name, setName] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [copiedId, setCopiedId] = useState<string | null>(null);
 
   useEffect(() => {
     const token =
@@ -124,6 +125,9 @@ export default function DevicesPage() {
   return (
     <div className="min-h-screen bg-slate-900 text-slate-100 flex items-center justify-center">
       <div className="w-full max-w-3xl bg-slate-800 rounded-xl shadow-lg p-8 space-y-6">
+        {copiedId && (
+          <p className="text-xs text-emerald-300">deviceId가 클립보드에 복사되었습니다: {copiedId}</p>
+        )}
         <div className="flex items-center justify-between">
           <h1 className="text-2xl font-bold">디바이스 관리</h1>
           <button
@@ -177,6 +181,7 @@ export default function DevicesPage() {
                     <th className="py-2 pr-4">이름</th>
                     <th className="py-2 pr-4">상태</th>
                     <th className="py-2 pr-4">생성일</th>
+                    <th className="py-2 pr-4">액션</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -187,6 +192,31 @@ export default function DevicesPage() {
                       <td className="py-2 pr-4">{d.status}</td>
                       <td className="py-2 pr-4 text-xs text-slate-400">
                         {new Date(d.createdAt).toLocaleString()}
+                      </td>
+                      <td className="py-2 pr-4">
+                        <div className="flex gap-2">
+                          <button
+                            type="button"
+                            className="rounded-md bg-slate-700 hover:bg-slate-600 px-2 py-1 text-xs"
+                            onClick={async () => {
+                              try {
+                                await navigator.clipboard.writeText(d.deviceId);
+                                setCopiedId(d.deviceId);
+                              } catch (e) {
+                                setCopiedId(d.deviceId);
+                              }
+                            }}
+                          >
+                            ID 복사
+                          </button>
+                          <button
+                            type="button"
+                            className="rounded-md bg-sky-500 hover:bg-sky-600 px-2 py-1 text-xs"
+                            onClick={() => router.push(`/messages?deviceId=${encodeURIComponent(d.deviceId)}`)}
+                          >
+                            메시지 보기
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   ))}

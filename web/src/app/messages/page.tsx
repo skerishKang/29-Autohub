@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:3000";
 
@@ -25,10 +25,22 @@ interface MessageEvent {
 
 export default function MessagesPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [messages, setMessages] = useState<MessageEvent[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [direction, setDirection] = useState<"all" | "inbound" | "outbound">("all");
+  const [deviceId, setDeviceId] = useState("");
+  const [initializedFromQuery, setInitializedFromQuery] = useState(false);
+
+  useEffect(() => {
+    if (initializedFromQuery) return;
+    const q = searchParams.get("deviceId");
+    if (q) {
+      setDeviceId(q);
+    }
+    setInitializedFromQuery(true);
+  }, [searchParams, initializedFromQuery]);
 
   useEffect(() => {
     const token =
@@ -44,6 +56,9 @@ export default function MessagesPage() {
         const params = new URLSearchParams();
         if (direction !== "all") {
           params.set("direction", direction);
+        }
+        if (deviceId.trim()) {
+          params.set("deviceId", deviceId.trim());
         }
         const query = params.toString();
 
@@ -72,7 +87,7 @@ export default function MessagesPage() {
     }
 
     fetchMessages();
-  }, [router, direction]);
+  }, [router, direction, deviceId]);
 
   if (loading) {
     return (
@@ -88,6 +103,13 @@ export default function MessagesPage() {
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
           <h1 className="text-2xl font-bold">메시지 로그</h1>
           <div className="flex gap-2 items-center">
+            <input
+              type="text"
+              className="rounded-md border border-slate-600 bg-slate-900 px-2 py-1 text-xs outline-none focus:border-sky-500 w-40"
+              placeholder="deviceId 필터 (옵션)"
+              value={deviceId}
+              onChange={(e) => setDeviceId(e.target.value)}
+            />
             <select
               className="rounded-md border border-slate-600 bg-slate-900 px-2 py-1 text-xs outline-none focus:border-sky-500"
               value={direction}

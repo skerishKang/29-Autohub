@@ -101,3 +101,20 @@ export async function listDevicesForTenant(tenantId: string): Promise<Device[]> 
 
   return result.rows.map(mapRowToDevice);
 }
+
+export async function getDeviceByDeviceId(deviceId: string): Promise<Device | null> {
+  const pool: Pool = getDbPool();
+
+  const result = await pool.query(
+    `SELECT * FROM devices
+     WHERE device_id = $1
+     LIMIT 1`,
+    [deviceId],
+  );
+
+  if ((result.rowCount ?? 0) === 0) {
+    return null;
+  }
+
+  return mapRowToDevice(result.rows[0]);
+}

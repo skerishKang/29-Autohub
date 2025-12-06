@@ -20,26 +20,38 @@ router.get('/', authMiddleware, async (req: AuthenticatedRequest, res: Response)
 
     const pool = getDbPool();
 
-    const { direction, limit } = (req.query || {}) as {
+    const { direction, limit, deviceId } = (req.query || {}) as {
       direction?: string;
       limit?: string;
+      deviceId?: string;
     };
 
     const parsedLimit = Math.min(Math.max(Number(limit) || 50, 1), 200);
 
     const params: any[] = [tenantId, parsedLimit];
-    let directionFilter = '';
+    const filterClauses: string[] = [];
+    let paramIndex = params.length + 1;
+
     if (direction === 'inbound' || direction === 'outbound') {
-      directionFilter = 'AND direction = $3';
+      filterClauses.push(`direction = $${paramIndex}`);
       params.push(direction);
+      paramIndex += 1;
     }
+
+    if (deviceId && deviceId.trim().length > 0) {
+      filterClauses.push(`device_id = $${paramIndex}`);
+      params.push(deviceId.trim());
+      paramIndex += 1;
+    }
+
+    const filterSql = filterClauses.length > 0 ? ` AND ${filterClauses.join(' AND ')}` : '';
 
     const result = await pool.query(
       `SELECT id, tenant_id, direction, channel, device_id, external_id, sender, recipient,
               body, status, error_code, error_message, received_at, created_at, updated_at
          FROM message_events
         WHERE tenant_id = $1
-        ${directionFilter}
+        ${filterSql}
         ORDER BY created_at DESC
         LIMIT $2`,
       params,

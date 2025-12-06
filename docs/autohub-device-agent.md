@@ -329,3 +329,68 @@ interface SmsRequestBody {
 - 운영
   - 디바이스 등록/관리 UI에서 에이전트 상태 표시
   - n8n 플로우 템플릿(예: 키워드 기반 라우팅, 스팸 필터링) 제공
+
+---
+
+## 8. n8n 템플릿 플로우 예시
+
+### 8.1 키워드 기반 자동 응답 플로우
+
+- 목적: 특정 키워드(예: "가입", "해지")가 포함된 인바운드 SMS에 대해 자동으로 응답 SMS를 발송한다.
+- 구조:
+  1. **Webhook(인바운드 SMS 수신)**
+     - Path: `/autohub/inbound-sms`
+     - AutoHub 백엔드의 n8n 웹훅 URL로 설정.
+  2. **Switch(조건 분기)**
+     - 조건 1: `{{$json.body}}` 에 `"가입"` 포함
+     - 조건 2: `{{$json.body}}` 에 `"해지"` 포함
+  3. **Function 노드(응답 메시지 구성)**
+     - 분기별로 응답 텍스트와 대상 번호(`recipient`)를 설정.
+  4. **HTTP Request 노드(발신 SMS 요청)**
+     - Method: `POST`
+     - URL: `https://<autohub-backend>/api/notifications`
+     - Body(JSON):
+       ```json
+       {
+         "channel": "sms",
+         "deviceId": "{{ $json.deviceId }}",
+         "recipient": "{{ $json.sender }}",
+         "body": "{{ $json.replyBody }}"
+       }
+       ```
+     - 인증: AutoHub 백엔드용 API 토큰 또는 JWT 사용.
+
+### 8.2 발신 캠페인(배치 발송) 플로우
+
+- 목적: 특정 번호 리스트에 동일한 공지/캠페인 메시지를 순차적으로 발송한다.
+- 구조:
+  1. **Manual Trigger 또는 Schedule 노드**
+  2. **Spreadsheet / Static Data 노드**
+     - 수신자 목록(전화번호, 이름 등) 보관.
+  3. **Item Lists / Split In Batches 노드**
+     - 적절한 배치 크기로 나누어 전송(예: 50건 단위).
+  4. **HTTP Request 노드(발신 SMS 요청)**
+     - URL: `/api/notifications`
+     - Body(JSON):
+       ```json
+       {
+         "channel": "sms",
+         "deviceId": "campaign-device-1",
+         "recipient": "{{ $json.phone }}",
+         "body": "{{ $json.message }}"
+       }
+       ```
+
+### 8.3 스팸/블랙리스트 필터링 플로우
+
+- 목적: 특정 번호(블랙리스트)에서 오는 메시지나, 스팸 의심 키워드가 포함된 메시지를 별도 라벨링/차단 처리.
+- 구조:
+  1. **Webhook(인바운드 SMS)**
+  2. **IF 노드(블랙리스트 번호)**
+     - 조건: `{{$json.sender}}` 가 특정 리스트에 포함되는지 체크.
+  3. **IF 노드(스팸 키워드)**
+     - 조건: `{{$json.body}}` 내 금지/의심 키워드 포함 여부 체크.
+  4. **HTTP Request 노드(내부 API 호출)**
+     - 예: `/api/notifications` 나 외부 서비스로 경고 전송.
+  5. (선택) **Database 노드**
+     - 스팸/차단 로그를 별도 테이블에 저장.

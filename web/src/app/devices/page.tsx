@@ -305,7 +305,16 @@ export default function DevicesPage() {
                               className="rounded-md bg-slate-700 hover:bg-slate-600 px-2 py-1 text-xs"
                               onClick={() => handleViewSummary(d.deviceId)}
                             >
-                              상세
+                              요약 보기
+                            </button>
+                            <button
+                              type="button"
+                              className="rounded-md bg-slate-700 hover:bg-slate-600 px-2 py-1 text-xs"
+                              onClick={() =>
+                                router.push(`/devices/${encodeURIComponent(d.deviceId)}`)
+                              }
+                            >
+                              상세 페이지
                             </button>
                           </div>
                         </td>
